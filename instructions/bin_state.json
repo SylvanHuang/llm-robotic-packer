@@ -1,0 +1,71 @@
+{
+  "bin": {
+    "dimensions": [
+      10,
+      10,
+      10
+    ],
+    "placed_boxes": [
+      {
+        "position": [
+          7,
+          0,
+          0
+        ],
+        "size": [
+          2,
+          2,
+          2
+        ],
+        "color": "purple"
+      },
+      {
+        "position": [
+          7,
+          1,
+          0
+        ],
+        "size": [
+          2,
+          2,
+          2
+        ],
+        "color": "orange"
+      },
+      {
+        "position": [
+          2,
+          5,
+          0
+        ],
+        "size": [
+          2,
+          2,
+          2
+        ],
+        "color": "green"
+      },
+      {
+        "position": [
+          1,
+          7,
+          0
+        ],
+        "size": [
+          2,
+          2,
+          2
+        ],
+        "color": "blue"
+      }
+    ]
+  },
+  "new_box": {
+    "size": [
+      3,
+      3,
+      3
+    ],
+    "color": "red"
+  }
+}
