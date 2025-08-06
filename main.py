@@ -2,14 +2,14 @@
 
 from envs.bin_packing_env import BinPacking3DEnv
 from llm_generate import call_gpt4_for_path
-from envs.state_manager import save_bin_state
+from envs.state_manager import save_bin_state, check_collision, is_supported
 import random
 import os
 import json
 
 def generate_random_box():
     return {
-        "size": [random.randint(1, 3), random.randint(1, 3), random.randint(1, 3)],
+        "size": [random.randint(2, 4), random.randint(2, 4), random.randint(2, 4)],
         "path": []  # Will be filled in by the LLM
     }
 
@@ -22,7 +22,7 @@ def main():
     env = BinPacking3DEnv()
     placed_boxes = []
 
-    for i in range(10):
+    for i in range(3):
         print(f"\n🎯 Preparing box {i + 1}...")
 
         box = generate_random_box()
@@ -43,6 +43,17 @@ def main():
 
         box["size"] = gpt_response["size"]
         box["path"] = gpt_response["path"]
+        final_pos = box["path"][-1]
+
+        # ✅ Collision + support check
+        if check_collision(final_pos, box["size"], placed_boxes):
+            print("❌ Collision detected. Skipping box.")
+            continue
+
+        if not is_supported(final_pos, box["size"], placed_boxes):
+            print("❌ Unsupported (floating) box. Skipping box.")
+            continue
+
         write_instruction_file(box, box["path"])
 
         # Run simulation

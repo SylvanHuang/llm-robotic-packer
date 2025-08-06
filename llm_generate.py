@@ -17,9 +17,13 @@ You are a 3D robotic box-packing assistant. Your job is to place a new box into 
 Here are the important physical and logical constraints:
 1. The bin has fixed dimensions. Boxes must **not go outside** these dimensions.
 2. Boxes must be **fully inside the bin** after placement.
-3. Boxes cannot float in mid-air. The final box position must be **either on the floor (z=0)** or **on another box**.
+3. Boxes cannot float in mid-air. The final box position must be **either on the floor (z=0)** or **on top of another box**.
 4. The path should simulate **gravity** — the box starts at z=10 and moves down.
 5. There must be **no collisions** with placed boxes at any point.
+
+⚠️ Packing Strategy Tip:
+- Try to **fill the corners and sides of the bin first** before placing boxes in the center.
+- This helps preserve open space and increases the chance of fitting more boxes later.
 
 Return a JSON with:
 - "size": [x, y, z]
