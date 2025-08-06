@@ -8,14 +8,14 @@ def is_within_bounds(pos, size, bin_dims, verbose=False, allow_above=True):
     # z-limit: entry path can be above the bin, final placement must be inside
     z_valid = z >= 0 if allow_above else (0 <= z <= bin_d - dz)
 
-    if verbose:
-        print(f"  🔍 Checking bounds for pos {pos} with size {size} vs bin {bin_dims}")
-        print(f"    x in [0, {bin_w - dx}] → {0 <= x <= bin_w - dx}")
-        print(f"    y in [0, {bin_h - dy}] → {0 <= y <= bin_h - dy}")
-        if allow_above:
-            print(f"    z ≥ 0 → {z >= 0}")
-        else:
-            print(f"    z in [0, {bin_d - dz}] → {0 <= z <= bin_d - dz}")
+    # if verbose:
+    #     print(f"  🔍 Checking bounds for pos {pos} with size {size} vs bin {bin_dims}")
+    #     print(f"    x in [0, {bin_w - dx}] → {0 <= x <= bin_w - dx}")
+    #     print(f"    y in [0, {bin_h - dy}] → {0 <= y <= bin_h - dy}")
+    #     if allow_above:
+    #         print(f"    z ≥ 0 → {z >= 0}")
+    #     else:
+    #         print(f"    z in [0, {bin_d - dz}] → {0 <= z <= bin_d - dz}")
 
     return (
         0 <= x <= bin_w - dx and
