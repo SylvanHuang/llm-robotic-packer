@@ -4,6 +4,8 @@ from envs.bin_packing_env import BinPacking3DEnv
 from envs.state_manager import save_bin_state
 from llm_generate import call_gpt4_for_path
 import random
+from envs.validator import validate_instruction
+
 
 NUM_BOXES = 5
 
@@ -36,6 +38,18 @@ for i in range(NUM_BOXES):
 
     # Load and animate
     env.load_instruction()
+
+    # ✅ Validate before placing
+    is_valid = validate_instruction(
+        box_instruction=env.box_instruction,
+        placed_boxes=env.placed_boxes,
+        bin_dims=[env.bin_width, env.bin_height, env.bin_depth]
+    )
+
+    if not is_valid:
+        print(f"⚠️ Skipping box {i + 1} due to validation failure.\n")
+        continue  # Skip this box
+
     env.current_step = 0
     env.box_position = env.box_instruction["path"][0]
 

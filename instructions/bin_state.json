@@ -8,22 +8,9 @@
     "placed_boxes": [
       {
         "position": [
-          2,
-          2,
-          2
-        ],
-        "size": [
-          2,
-          2,
-          2
-        ],
-        "color": "orange"
-      },
-      {
-        "position": [
           0,
           0,
-          7
+          0
         ],
         "size": [
           3,
@@ -34,8 +21,8 @@
       },
       {
         "position": [
-          8,
-          8,
+          4,
+          4,
           0
         ],
         "size": [
@@ -47,16 +34,16 @@
       },
       {
         "position": [
-          3,
-          3,
+          6,
+          6,
           0
         ],
         "size": [
-          3,
-          3,
-          3
+          2,
+          2,
+          2
         ],
-        "color": "red"
+        "color": "orange"
       }
     ]
   },
@@ -66,6 +53,6 @@
       2,
       2
     ],
-    "color": "blue"
+    "color": "orange"
   }
 }
