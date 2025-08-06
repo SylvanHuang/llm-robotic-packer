@@ -5,11 +5,6 @@ import json
 import time
 from dotenv import load_dotenv
 from openai import OpenAI
-import tiktoken
-
-def count_tokens(text, model="gpt-4o"):
-    encoding = tiktoken.encoding_for_model(model)
-    return len(encoding.encode(text))
 
 
 
@@ -47,13 +42,6 @@ def call_gpt4_for_path():
 
     user_prompt = f"""Bin state:\n{bin_state}\n\nGenerate the path to place the new box."""
 
-    sys_tokens = count_tokens(SYSTEM_PROMPT)
-    user_tokens = count_tokens(user_prompt)
-
-    print(f"🧮 System Prompt Tokens: {sys_tokens}")
-    print(f"🧮 User Prompt Tokens: {user_tokens}")
-    print(f"🧮 Total Prompt Tokens: {sys_tokens + user_tokens}")
-
     print("⏳ Contacting GPT-4o...")
 
     response = client.chat.completions.create(
@@ -66,13 +54,6 @@ def call_gpt4_for_path():
     )
 
     reply = response.choices[0].message.content
-    output_tokens = count_tokens(reply)
-    print(f"📨 Output Tokens: {output_tokens}")
-    print(f"🧮 Total Tokens Used This Call: {sys_tokens + user_tokens + output_tokens}")
-
-    print("📬 GPT-4o Response:\n" + "-"*40)
-    print(reply)
-    print("-" * 40)
 
     try:
         parsed = json.loads(reply)
