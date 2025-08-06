@@ -1,32 +1,124 @@
 {
   "bin": {
-    "dimensions": [
-      10,
-      10,
-      10
-    ],
-    "placed_boxes": [
-      {
-        "position": [
-          5,
-          5,
-          0
-        ],
-        "size": [
-          2,
-          2,
-          2
-        ],
-        "color": "red"
-      }
-    ]
+    "width": 10,
+    "height": 10,
+    "depth": 10
   },
-  "new_box": {
+  "placed_boxes": [
+    {
+      "position": [
+        4,
+        4,
+        0
+      ],
+      "size": [
+        2,
+        1,
+        2
+      ]
+    },
+    {
+      "position": [
+        5,
+        0,
+        0
+      ],
+      "size": [
+        1,
+        3,
+        1
+      ]
+    },
+    {
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        2,
+        1,
+        3
+      ]
+    },
+    {
+      "position": [
+        6,
+        6,
+        0
+      ],
+      "size": [
+        3,
+        3,
+        1
+      ]
+    },
+    {
+      "position": [
+        8,
+        7,
+        0
+      ],
+      "size": [
+        2,
+        3,
+        2
+      ]
+    },
+    {
+      "position": [
+        3,
+        7,
+        0
+      ],
+      "size": [
+        1,
+        3,
+        3
+      ]
+    },
+    {
+      "position": [
+        0,
+        3,
+        0
+      ],
+      "size": [
+        1,
+        2,
+        1
+      ]
+    },
+    {
+      "position": [
+        2,
+        2,
+        0
+      ],
+      "size": [
+        1,
+        1,
+        3
+      ]
+    },
+    {
+      "position": [
+        9,
+        0,
+        0
+      ],
+      "size": [
+        1,
+        1,
+        1
+      ]
+    }
+  ],
+  "incoming_box": {
     "size": [
+      3,
       2,
-      2,
-      2
-    ],
-    "color": "orange"
+      3
+    ]
   }
 }

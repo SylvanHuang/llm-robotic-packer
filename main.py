@@ -1,70 +1,63 @@
-from envs.bin_packing_env import BinPacking3DEnv
-from envs.state_manager import save_bin_state
-from envs.validator import validate_instruction
-from envs.metrics import compute_metrics
-from llm_generate import call_gpt4_for_path
-import random
+# main.py
 
-NUM_BOXES = 5
-MAX_RETRIES = 3
+from envs.bin_packing_env import BinPacking3DEnv
+from llm_generate import call_gpt4_for_path
+from envs.state_manager import save_bin_state
+import random
+import os
+import json
 
 def generate_random_box():
-    size = [random.randint(2, 3)] * 3
-    color = random.choice(["red", "green", "blue", "orange", "purple"])
     return {
-        "size": size,
-        "color": color,
-        "path": []
+        "size": [random.randint(1, 3), random.randint(1, 3), random.randint(1, 3)],
+        "path": []  # Will be filled in by the LLM
     }
 
-env = BinPacking3DEnv()
+def write_instruction_file(box, path="instructions/instruction.json"):
+    box["path"] = path
+    with open("instructions/instruction.json", "w") as f:
+        json.dump(box, f)
 
-for i in range(NUM_BOXES):
-    print(f"\n🎯 Preparing box {i+1}...")
+def main():
+    env = BinPacking3DEnv()
+    placed_boxes = []
 
-    new_box = generate_random_box()
-    success = False
+    for i in range(10):
+        print(f"\n🎯 Preparing box {i + 1}...")
 
-    for attempt in range(1, MAX_RETRIES + 1):
-        print(f"\n🔁 Attempt {attempt} for box {i+1}")
+        box = generate_random_box()
 
-        env.box_instruction = new_box
-
+        # Write current bin state
         save_bin_state(
-            placed_boxes=env.placed_boxes,
-            new_box=new_box,
-            bin_dims=[env.bin_width, env.bin_height, env.bin_depth],
+            placed_boxes=placed_boxes,
+            new_box=box,
+            bin_dims=[10, 10, 10],
             path="instructions/bin_state.json"
         )
 
-        call_gpt4_for_path()
-        env.load_instruction()
+        # Get path from GPT-4o
+        gpt_response = call_gpt4_for_path()
+        if not gpt_response or "path" not in gpt_response:
+            print("❌ Invalid GPT response.")
+            continue
 
-        is_valid = validate_instruction(
-            box_instruction=env.box_instruction,
-            placed_boxes=env.placed_boxes,
-            bin_dims=[env.bin_width, env.bin_height, env.bin_depth]
-        )
+        box["size"] = gpt_response["size"]
+        box["path"] = gpt_response["path"]
+        write_instruction_file(box, box["path"])
 
-        if is_valid:
-            env.current_step = 0
-            env.box_position = env.box_instruction["path"][0]
+        # Run simulation
+        obs = env.reset()
+        done = False
+        while not done:
+            obs, _, done, _, _ = env.step(0)
+            env.render()
 
-            done = False
-            while not done:
-                env.render()
-                _, _, done, _, _ = env.step(0)
+        placed_boxes.append({
+            "position": box["path"][-1],
+            "size": box["size"]
+        })
 
-            # ✅ Print metrics
-            metrics = compute_metrics(env.placed_boxes, [env.bin_width, env.bin_height, env.bin_depth])
-            print(f"\n📊 Metrics after box {i+1}:\n{metrics}")
-            success = True
-            break
-        else:
-            print("⚠️ Invalid placement. Retrying...\n")
+    env.close()
 
-    if not success:
-        print(f"❌ Failed to place box {i+1} after {MAX_RETRIES} attempts.")
-
-env.close()
-print("\n✅ Simulation complete!")
+if __name__ == "__main__":
+    main()

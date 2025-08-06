@@ -2,15 +2,16 @@
 
 import json
 
-def save_bin_state(placed_boxes, new_box, bin_dims, path):
+def save_bin_state(placed_boxes, new_box, bin_dims, path="instructions/bin_state.json"):
     state = {
         "bin": {
-            "dimensions": bin_dims,
-            "placed_boxes": placed_boxes
+            "width": bin_dims[0],
+            "height": bin_dims[1],
+            "depth": bin_dims[2]
         },
-        "new_box": {
-            "size": new_box["size"],
-            "color": new_box["color"]
+        "placed_boxes": placed_boxes,
+        "incoming_box": {
+            "size": new_box["size"]
         }
     }
 
