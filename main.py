@@ -2,7 +2,7 @@
 
 from envs.bin_packing_env import BinPacking3DEnv
 from envs.state_manager import save_bin_state
-from llm import mock_llm_response
+from simulate_llm import mock_llm_response
 import random
 
 NUM_BOXES = 5
