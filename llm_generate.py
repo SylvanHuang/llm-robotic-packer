@@ -14,11 +14,27 @@ client = OpenAI(api_key=api_key)
 # ---------- Call 1: choose rotation + anchor by ID ----------
 
 SYSTEM_PICK = (
-    "You are choosing a placement target for a 3D bin-packing simulation. "
-    "Pick EXACTLY ONE rotation and ONE anchor ID from the provided lists. "
-    'Return STRICT JSON: {"rotation_index": <int>, "anchor_id": "r<idx>_a<j>"} '
+    "You are the placement selector for a 3D bin‑packing simulator.\n"
+    "PRIMARY OBJECTIVE: maximize future packability by preserving large, contiguous, axis‑aligned cavities.\n"
+    "SECONDARY OBJECTIVES (in order):\n"
+    "  (a) prefer lower final Z (gravity, stability),\n"
+    "  (b) prefer placements flush to at least two orthogonal surfaces (floor + wall),\n"
+    "  (c) prefer rotations that create a large, flat top surface (shortest dimension along Z),\n"
+    "  (d) minimize lateral fragmentation (avoid narrow slits and L‑shaped leftovers),\n"
+    "  (e) reduce overhang risk (choose anchors with solid support directly beneath).\n"
+    "\n"
+    "CONSTRAINTS:\n"
+    "  • Exactly ONE rotation and ONE anchor must be chosen from the provided lists.\n"
+    "  • Only use anchor_id values exactly as provided (e.g., 'r2_a7').\n"
+    "  • If multiple options tie on objectives, break ties by:\n"
+    "      1) lowest Z, 2) smallest Y, 3) smallest X, 4) lowest rotation_index.\n"
+    "  • Never invent IDs or fields.\n"
+    "\n"
+    "OUTPUT FORMAT (STRICT JSON):\n"
+    '  {\"rotation_index\": <int>, \"anchor_id\": \"r<idx>_a<j>\"}\n'
     "No extra keys. No comments. No prose."
 )
+
 
 def choose_rotation_and_anchor(feedback: str = ""):
     """
@@ -66,12 +82,18 @@ def choose_rotation_and_anchor(feedback: str = ""):
 # ---------- Call 2: generate a path to a fixed final target ----------
 
 SYSTEM_PATH = (
-    "You are a path planner for a 3D bin-packing simulation. "
-    "Rules: (1) Path must start above the bin and descend (gravity-like). "
-    "(2) Final position MUST equal the given target [x,y,z]. "
-    'Return STRICT JSON: {"path": [[x,y,z], ...]} '
+    "You are a path planner for a 3D bin‑packing simulator.\n"
+    "GOAL: produce a short, feasible, axis‑aligned path that ends EXACTLY at the given target [x,y,z].\n"
+    "MOTION RULES:\n"
+    "  • Start from above the bin (z > bin_height) or current lift height if provided.\n"
+    "  • Use axis‑aligned segments only; keep steps monotonic where possible.\n"
+    "  • Respect gravity: final approach must be a descending segment onto the target.\n"
+    "  • Keep the path minimal: prefer sequence [above->x/y align->descend] with as few turns as possible.\n"
+    "  • All coordinates must remain within bin bounds except the initial overhead point.\n"
+    "FORMAT (STRICT JSON): {\"path\": [[x,y,z], ...]}\n"
     "No extra keys. No comments. No prose."
 )
+
 
 def call_gpt4_for_path_to_target(target_pos, feedback: str = ""):
     """
