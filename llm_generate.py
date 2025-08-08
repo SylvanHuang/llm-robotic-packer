@@ -48,7 +48,7 @@ def choose_rotation_and_anchor(feedback: str = ""):
     )
 
     resp = client.chat.completions.create(
-        model="gpt-4o",
+        model="gpt-4o-mini",
         messages=[
             {"role": "system", "content": SYSTEM_PICK},
             {"role": "user", "content": user},
@@ -84,7 +84,7 @@ def call_gpt4_for_path_to_target(target_pos, feedback: str = ""):
     )
 
     resp = client.chat.completions.create(
-        model="gpt-4o",
+        model="gpt-4o-mini",
         messages=[
             {"role": "system", "content": SYSTEM_PATH},
             {"role": "user", "content": user},

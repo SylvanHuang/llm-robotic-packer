@@ -34,7 +34,7 @@ def main():
     env = BinPacking3DEnv()
     placed_boxes = []
 
-    for i in range(20):
+    for i in range(35):
         print(f"\n🎯 Preparing box {i + 1}...")
         box = generate_random_box()
         original_size = list(box["size"])
