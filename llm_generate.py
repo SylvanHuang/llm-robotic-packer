@@ -5,71 +5,96 @@ import json
 from dotenv import load_dotenv
 from openai import OpenAI
 
+BIN_STATE_PATH = "instructions/bin_state.json"
+
 load_dotenv()
 api_key = os.getenv("OPENAI_API_KEY")
 client = OpenAI(api_key=api_key)
 
-BIN_STATE_PATH = "instructions/bin_state.json"
+# ---------- Call 1: choose rotation + anchor by ID ----------
 
-SYSTEM_PROMPT = """
-You are a 3D robotic box-packing assistant. Your job is to place a new box into a bin by generating a realistic path (sequence of 3D coordinates) that starts from above the bin and ends with the box resting securely on the floor or on top of another box.
+SYSTEM_PICK = (
+    "You are choosing a placement target for a 3D bin-packing simulation. "
+    "Pick EXACTLY ONE rotation and ONE anchor ID from the provided lists. "
+    'Return STRICT JSON: {"rotation_index": <int>, "anchor_id": "r<idx>_a<j>"} '
+    "No extra keys. No comments. No prose."
+)
 
-Here are the physical and logical constraints:
-1. The bin has fixed dimensions. Boxes must not go outside these dimensions.
-2. Boxes must be fully inside the bin after placement.
-3. Boxes cannot float in mid-air. The final box position must be either on the floor (z=0) or on top of another box.
-4. The path should simulate gravity — the box starts at z=10 and moves down.
-5. There must be no collisions with placed boxes at any point.
-
-⚠️ Strategy Tips:
-- Use the provided list of anchor positions. These are valid [x, y, z] locations that are safe to consider for final placement.
-- Prefer corners and edges first to preserve central space.
-
-Return only valid JSON like this:
-{
-  "size": [x, y, z],
-  "path": [[x1, y1, z1], ..., [xf, yf, zf]]
-}
-
-⚠️ No markdown or explanation — return only valid raw JSON.
-"""
-
-def call_gpt4_for_path(feedback=""):
+def choose_rotation_and_anchor(feedback: str = ""):
+    """
+    Ask the model to pick a rotation and an anchor by ID.
+    Uses JSON response mode to ensure strict JSON output.
+    """
     with open(BIN_STATE_PATH, "r") as f:
-        bin_state_json = json.load(f)
+        state = json.load(f)
 
-    anchor_list = bin_state_json.get("anchor_positions", [])
-    bin_state = json.dumps(bin_state_json, indent=None, separators=(",", ": "))
-
-    user_prompt = f"""Bin state:
-{bin_state}
-
-Anchors (valid final positions):
-{anchor_list}
-
-Generate a valid path to place the new box."""
-
-    if feedback:
-        user_prompt += f"\n\n⚠️ Feedback: {feedback}"
-
-    print("🧠 Contacting GPT-4o...")
-
-    # noinspection PyTypeChecker
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT.strip()},
-            {"role": "user", "content": user_prompt.strip()}
-        ],
-        temperature=0.3
+    # Keep only essentials in the prompt (compact JSON)
+    compact = json.dumps(
+        {
+            "bin": state.get("bin", {}),
+            "incoming_box": {
+                "original_size": state.get("incoming_box", {}).get("original_size", []),
+                "rotations": state.get("incoming_box", {}).get("rotations", []),
+            },
+            "anchors_indexed": state.get("anchors_indexed", []),
+        },
+        separators=(",", ":"),
     )
 
-    reply = response.choices[0].message.content
+    user = (
+        "Select exactly one rotation_index and one anchor_id from anchors_indexed.\n"
+        f"{('Feedback: ' + feedback) if feedback else ''}\n"
+        f"{compact}"
+    )
 
+    resp = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": SYSTEM_PICK},
+            {"role": "user", "content": user},
+        ],
+        temperature=0.0,
+        response_format={"type": "json_object"},  # ✅ force strict JSON
+    )
+
+    raw = resp.choices[0].message.content
     try:
-        parsed = json.loads(reply)
-        print("✅ GPT-4o returned a valid path.")
-        return parsed
+        return json.loads(raw)
     except json.JSONDecodeError:
-        print("❌ GPT-4o returned an invalid response.")
-        return {}
+        return None
+
+# ---------- Call 2: generate a path to a fixed final target ----------
+
+SYSTEM_PATH = (
+    "You are a path planner for a 3D bin-packing simulation. "
+    "Rules: (1) Path must start above the bin and descend (gravity-like). "
+    "(2) Final position MUST equal the given target [x,y,z]. "
+    'Return STRICT JSON: {"path": [[x,y,z], ...]} '
+    "No extra keys. No comments. No prose."
+)
+
+def call_gpt4_for_path_to_target(target_pos, feedback: str = ""):
+    """
+    Ask the model for a gravity-like path that ends exactly at target_pos.
+    Uses JSON response mode to ensure strict JSON output.
+    """
+    user = (
+        f"Final target position (must end here): {target_pos}\n"
+        f"{('Feedback: ' + feedback) if feedback else ''}"
+    )
+
+    resp = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": SYSTEM_PATH},
+            {"role": "user", "content": user},
+        ],
+        temperature=0.0,
+        response_format={"type": "json_object"},  # ✅ force strict JSON
+    )
+
+    raw = resp.choices[0].message.content
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        return None

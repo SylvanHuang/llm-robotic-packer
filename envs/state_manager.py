@@ -1,27 +1,29 @@
 # envs/state_manager.py
 
 import json
+from itertools import permutations
 
-def save_bin_state(placed_boxes, new_box, bin_dims, path="instructions/bin_state.json"):
-    anchors = generate_anchor_positions(placed_boxes, new_box["size"], bin_dims)
+# ---------- Small helpers ----------
 
-    state = {
-        "bin": {
-            "width": bin_dims[0],
-            "height": bin_dims[1],
-            "depth": bin_dims[2]
-        },
-        "placed_boxes": placed_boxes,
-        "incoming_box": {
-            "size": new_box["size"]
-        },
-        "anchor_positions": anchors
-    }
+def generate_orientations(size):
+    """All unique 90° axis-aligned orientations of [w,h,d]."""
+    if not size or len(size) != 3:
+        return []
+    return [list(p) for p in sorted(set(permutations(size, 3)))]
 
-    with open(path, "w") as f:
-        json.dump(state, f, indent=None, separators=(",", ": "))
+def is_within_bounds(pos, size, bin_dims):
+    """Check if box at pos with size fits entirely in bin."""
+    for i in range(3):
+        if pos[i] < 0:
+            return False
+        if pos[i] + size[i] > bin_dims[i]:
+            return False
+    return True
+
+# ---------- Core placement utilities ----------
 
 def check_collision(new_pos, new_size, placed_boxes):
+    """AABB overlap test against placed boxes."""
     nx, ny, nz = new_pos
     nsx, nsy, nsz = new_size
 
@@ -38,6 +40,7 @@ def check_collision(new_pos, new_size, placed_boxes):
     return False
 
 def is_supported(new_pos, new_size, placed_boxes):
+    """Supported if on floor (z=0) or exactly on top surface with xy overlap."""
     nx, ny, nz = new_pos
     nsx, nsy, nsz = new_size
 
@@ -56,49 +59,90 @@ def is_supported(new_pos, new_size, placed_boxes):
             return True
     return False
 
-
-def is_within_bounds(pos, size, bin_dims):
-    """
-    Check if a box at `pos` with `size` fits entirely inside the bin defined by `bin_dims`.
-    """
-    for i in range(3):
-        if pos[i] < 0:
-            return False
-        if pos[i] + size[i] > bin_dims[i]:
-            return False
-    return True
-
-
 def generate_anchor_positions(placed_boxes, new_box_size, bin_dims):
+    """
+    Candidate anchors for a given oriented box size:
+    - Floor (z=0)
+    - Top of boxes, within bounds, non-colliding
+    """
     anchors = []
-
     bin_w, bin_h, bin_d = bin_dims
     bw, bh, bd = new_box_size
 
-    # Always try floor anchors first
-    for x in range(0, bin_w - bw + 1):
-        for y in range(0, bin_h - bh + 1):
+    # Floor anchors
+    for x in range(0, max(0, bin_w - bw) + 1):
+        for y in range(0, max(0, bin_h - bh) + 1):
             z = 0
-            if not check_collision([x, y, z], new_box_size, placed_boxes):
-                anchors.append([x, y, z])
+            pos = [x, y, z]
+            if is_within_bounds(pos, new_box_size, bin_dims) and not check_collision(pos, new_box_size, placed_boxes):
+                anchors.append(pos)
 
-    # Then try top of other boxes
+    # Top anchors
     for box in placed_boxes:
         px, py, pz = box["position"]
         psx, psy, psz = box["size"]
         top_z = pz + psz
 
-        for dx in range(0, psx - bw + 1):
-            for dy in range(0, psy - bh + 1):
+        for dx in range(0, max(0, psx - bw) + 1):
+            for dy in range(0, max(0, psy - bh) + 1):
                 x = px + dx
                 y = py + dy
                 z = top_z
-                if (
-                    x + bw <= bin_w and
-                    y + bh <= bin_h and
-                    z + bd <= bin_d and
-                    not check_collision([x, y, z], new_box_size, placed_boxes)
-                ):
-                    anchors.append([x, y, z])
+                pos = [x, y, z]
+                if (is_within_bounds(pos, new_box_size, bin_dims) and
+                    not check_collision(pos, new_box_size, placed_boxes)):
+                    anchors.append(pos)
 
     return anchors
+
+# ---------- Small scoring (corners/edges first) + top-K ----------
+
+def score_anchor(pos, size, bin_dims):
+    """Higher score = more preferred (corners/edges)."""
+    x, y, z = pos
+    w, h, d = size
+    bw, bh, bd = bin_dims
+    score = 0
+    # Touching walls (prefer corners/edges)
+    score += (x == 0) + (y == 0) + (z == 0)
+    score += (x + w == bw) + (y + h == bh) + (z + d == bd)
+    # Light bias to lower coords to keep center open
+    score += max(0, (bw - (x + w))) * 0.01
+    score += max(0, (bh - (y + h))) * 0.01
+    return score
+
+def topk_anchors(anchors, size, bin_dims, k=8):
+    ranked = sorted(anchors, key=lambda p: score_anchor(p, size, bin_dims), reverse=True)
+    return ranked[:k]
+
+# ---------- State writer with rotations + indexed anchors ----------
+
+def save_bin_state(placed_boxes, new_box, bin_dims, path="instructions/bin_state.json", top_k=8):
+    """
+    Writes a compact bin_state with:
+      - incoming_box.original_size
+      - rotations
+      - anchors_indexed: [{rotation_index, size, anchors:[{id,pos}]}]
+    """
+    rotations = generate_orientations(new_box["size"])
+
+    anchors_indexed = []
+    for r_idx, rot_size in enumerate(rotations):
+        anchors_all = generate_anchor_positions(placed_boxes, rot_size, bin_dims)
+        anchors_k = topk_anchors(anchors_all, rot_size, bin_dims, k=top_k)
+        anchors_with_ids = [{"id": f"r{r_idx}_a{j}", "pos": pos} for j, pos in enumerate(anchors_k)]
+        anchors_indexed.append({
+            "rotation_index": r_idx,
+            "size": rot_size,
+            "anchors": anchors_with_ids
+        })
+
+    state = {
+        "bin": {"width": bin_dims[0], "height": bin_dims[1], "depth": bin_dims[2]},
+        "placed_boxes": placed_boxes,
+        "incoming_box": {"original_size": new_box["size"], "rotations": rotations},
+        "anchors_indexed": anchors_indexed
+    }
+
+    with open(path, "w") as f:
+        json.dump(state, f, indent=None, separators=(",", ": "))
