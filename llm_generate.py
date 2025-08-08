@@ -52,15 +52,16 @@ Generate a valid path to place the new box."""
     if feedback:
         user_prompt += f"\n\n⚠️ Feedback: {feedback}"
 
-    print("🧠 Contacting GPT-5...")
+    print("🧠 Contacting GPT-4o...")
 
     # noinspection PyTypeChecker
     response = client.chat.completions.create(
-        model="gpt-5-2025-08-07",
+        model="gpt-4o",
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT.strip()},
             {"role": "user", "content": user_prompt.strip()}
         ],
+        temperature=0.3
     )
 
     reply = response.choices[0].message.content

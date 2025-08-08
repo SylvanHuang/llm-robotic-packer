@@ -2,10 +2,11 @@
 
 from envs.bin_packing_env import BinPacking3DEnv
 from llm_generate import call_gpt4_for_path
-from envs.state_manager import save_bin_state, check_collision, is_supported
+from envs.state_manager import save_bin_state, check_collision, is_supported, is_within_bounds
 import random
 import os
 import json
+from datetime import datetime
 
 def generate_random_box():
     return {
@@ -59,6 +60,11 @@ def main():
                 feedback = "Your last path ended in a position where the box was floating. Boxes must be on the floor or supported by another box."
                 continue
 
+            if not is_within_bounds(final_pos, box["size"], [10, 10, 10]):
+                print("❌ Box is out of bin bounds.")
+                feedback = "Your last path placed the box outside the bin boundaries. Ensure the box is fully inside the bin."
+                continue
+
             # ✅ Valid placement
             write_instruction_file(box, box["path"])
             obs = env.reset()
@@ -71,6 +77,18 @@ def main():
                 "position": box["path"][-1],
                 "size": box["size"]
             })
+
+            # 📸 Save snapshot of the placement
+            import os
+            from datetime import datetime
+            if not hasattr(env, "snapshot_dir"):
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                env.snapshot_dir = os.path.join("snapshots", timestamp)
+                os.makedirs(env.snapshot_dir, exist_ok=True)
+            placement_index = getattr(env, "snapshot_count", 0) + 1
+            env.fig.savefig(os.path.join(env.snapshot_dir, f"placement_{placement_index}.png"))
+            env.snapshot_count = placement_index
+
             break  # Stop retrying on success
 
         else:

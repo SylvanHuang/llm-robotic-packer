@@ -56,6 +56,19 @@ def is_supported(new_pos, new_size, placed_boxes):
             return True
     return False
 
+
+def is_within_bounds(pos, size, bin_dims):
+    """
+    Check if a box at `pos` with `size` fits entirely inside the bin defined by `bin_dims`.
+    """
+    for i in range(3):
+        if pos[i] < 0:
+            return False
+        if pos[i] + size[i] > bin_dims[i]:
+            return False
+    return True
+
+
 def generate_anchor_positions(placed_boxes, new_box_size, bin_dims):
     anchors = []
 
