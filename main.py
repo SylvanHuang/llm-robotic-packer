@@ -79,8 +79,6 @@ def main():
             })
 
             # 📸 Save snapshot of the placement
-            import os
-            from datetime import datetime
             if not hasattr(env, "snapshot_dir"):
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 env.snapshot_dir = os.path.join("snapshots", timestamp)
