@@ -13,7 +13,7 @@ BIN_DIMS = [10, 10, 10]
 
 def generate_random_box():
     return {
-        "size": [random.randint(2, 4), random.randint(2, 4), random.randint(2, 4)],
+        "size": [random.randint(4, 6), random.randint(4, 6), random.randint(4, 6)],
         "path": []
     }
 
@@ -34,7 +34,7 @@ def main():
     env = BinPacking3DEnv()
     placed_boxes = []
 
-    for i in range(35):
+    for i in range(10):
         print(f"\n🎯 Preparing box {i + 1}...")
         box = generate_random_box()
         original_size = list(box["size"])
