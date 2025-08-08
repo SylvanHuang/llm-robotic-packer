@@ -9,7 +9,7 @@ import json
 
 def generate_random_box():
     return {
-        "size": [random.randint(2, 4), random.randint(2, 4), random.randint(2, 4)],
+        "size": [random.randint(3, 6), random.randint(3, 6), random.randint(3, 6)],
         "path": []  # Will be filled in by the LLM
     }
 
@@ -22,12 +22,11 @@ def main():
     env = BinPacking3DEnv()
     placed_boxes = []
 
-    for i in range(3):
+    for i in range(7):
         print(f"\n🎯 Preparing box {i + 1}...")
 
         box = generate_random_box()
 
-        # Write current bin state
         save_bin_state(
             placed_boxes=placed_boxes,
             new_box=box,
@@ -35,38 +34,47 @@ def main():
             path="instructions/bin_state.json"
         )
 
-        # Get path from GPT-4o
-        gpt_response = call_gpt4_for_path()
-        if not gpt_response or "path" not in gpt_response:
-            print("❌ Invalid GPT response.")
-            continue
+        # 🔁 Try up to 3 times if the box placement is invalid
+        max_attempts = 3
+        feedback = ""
+        for attempt in range(max_attempts):
+            print(f"⏳ Attempt {attempt + 1}...")
+            gpt_response = call_gpt4_for_path(feedback=feedback)
 
-        box["size"] = gpt_response["size"]
-        box["path"] = gpt_response["path"]
-        final_pos = box["path"][-1]
+            if not gpt_response or "path" not in gpt_response:
+                print("❌ Invalid GPT response.")
+                continue
 
-        # ✅ Collision + support check
-        if check_collision(final_pos, box["size"], placed_boxes):
-            print("❌ Collision detected. Skipping box.")
-            continue
+            box["size"] = gpt_response["size"]
+            box["path"] = gpt_response["path"]
+            final_pos = box["path"][-1]
 
-        if not is_supported(final_pos, box["size"], placed_boxes):
-            print("❌ Unsupported (floating) box. Skipping box.")
-            continue
+            if check_collision(final_pos, box["size"], placed_boxes):
+                print("❌ Collision detected.")
+                feedback = "Your last path caused a collision with another box. Please generate a different path that avoids all collisions."
+                continue
 
-        write_instruction_file(box, box["path"])
+            if not is_supported(final_pos, box["size"], placed_boxes):
+                print("❌ Box is floating.")
+                feedback = "Your last path ended in a position where the box was floating. Boxes must be on the floor or supported by another box."
+                continue
 
-        # Run simulation
-        obs = env.reset()
-        done = False
-        while not done:
-            obs, _, done, _, _ = env.step(0)
-            env.render()
+            # ✅ Valid placement
+            write_instruction_file(box, box["path"])
+            obs = env.reset()
+            done = False
+            while not done:
+                obs, _, done, _, _ = env.step(0)
+                env.render()
 
-        placed_boxes.append({
-            "position": box["path"][-1],
-            "size": box["size"]
-        })
+            placed_boxes.append({
+                "position": box["path"][-1],
+                "size": box["size"]
+            })
+            break  # Stop retrying on success
+
+        else:
+            print("❌ Failed to place box after 3 attempts.")
 
     env.close()
 
