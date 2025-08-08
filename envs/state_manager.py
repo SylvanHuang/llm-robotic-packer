@@ -19,7 +19,7 @@ def save_bin_state(placed_boxes, new_box, bin_dims, path="instructions/bin_state
     }
 
     with open(path, "w") as f:
-        json.dump(state, f, indent=2)
+        json.dump(state, f, indent=None, separators=(",", ": "))
 
 def check_collision(new_pos, new_size, placed_boxes):
     nx, ny, nz = new_pos

@@ -39,7 +39,7 @@ def call_gpt4_for_path(feedback=""):
         bin_state_json = json.load(f)
 
     anchor_list = bin_state_json.get("anchor_positions", [])
-    bin_state = json.dumps(bin_state_json, indent=2)
+    bin_state = json.dumps(bin_state_json, indent=None, separators=(",", ": "))
 
     user_prompt = f"""Bin state:
 {bin_state}
