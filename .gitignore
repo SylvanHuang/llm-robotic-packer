@@ -209,3 +209,5 @@ __marimo__/
 .idea/
 snapshots/
 results/
+models/
+logs/

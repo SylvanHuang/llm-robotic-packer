@@ -2,7 +2,12 @@
 
 from envs.bin_packing_env import BinPacking3DEnv
 from envs.state_manager import save_bin_state, check_collision, is_supported, is_within_bounds
-from llm_generate import choose_rotation_and_anchor, call_gpt4_for_path_to_target
+# OLD:
+# from llm_generate import choose_rotation_and_anchor, call_gpt4_for_path_to_target
+
+# NEW:
+from llm_backend import choose_rotation_and_anchor, call_gpt4_for_path_to_target
+
 import random
 import os
 import json
