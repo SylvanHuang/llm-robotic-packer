@@ -24,9 +24,9 @@ def _ensure_instruction_json():
 
 _ensure_instruction_json()
 
-# ---- Route to selected backend
+# llm_backend.py (only this block changes)
 if cfg.USE_LOCAL_LLM:
-    from local_llm import (
+    from local_llm_llama32 import (   # <- was: from local_llm import ...
         choose_rotation_and_anchor,
         call_gpt4_for_path_to_target,
     )

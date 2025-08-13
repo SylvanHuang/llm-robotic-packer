@@ -18,7 +18,7 @@ BIN_DIMS = [10, 10, 10]
 
 def generate_random_box():
     return {
-        "size": [random.randint(4, 6), random.randint(4, 6), random.randint(4, 6)],
+        "size": [random.randint(2, 5), random.randint(2, 5), random.randint(2, 5)],
         "path": []
     }
 
