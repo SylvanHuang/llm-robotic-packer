@@ -6,8 +6,6 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent
 
 # ---- Backend selection ----
-# True  -> use local LoRA Gemma-2B
-# False -> use remote API (original llm_generate.py)
 USE_LOCAL_LLM: bool = True
 
 # ---- Local LoRA model ----
