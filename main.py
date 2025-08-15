@@ -4,20 +4,19 @@
 
 import os
 import json
+import time
 import random
 from datetime import datetime
-from typing import List, Tuple
+from typing import List
 
 from envs.bin_packing_env import BinPacking3DEnv
 from envs.state_manager import save_bin_state, check_collision, is_supported, is_within_bounds
-from envs.metrics import save_run_metrics
-
-# Route through the backend switch (local LoRA or API) exactly as before
+from envs.metrics_v2 import save_run_metrics  # <-- NEW metrics
 from llm_backend import choose_rotation_and_anchor, call_gpt4_for_path_to_target
 
 # ------------------------ Runtime knobs ------------------------
 BIN_DIMS = [10, 10, 10]
-MAX_BOXES = 40
+MAX_BOXES = 25
 RANDOM_SEED = 7
 
 # Quieten various progress bars / threads that can trip macOS accelerators
@@ -59,16 +58,13 @@ def _sample_size_for_phase(fill: float, big_cubes_used: int) -> List[int]:
         weights = {2: 5, 3: 4, 4: 3, 5: 1}
         allow_555 = False
 
-    # Helper to draw one dim
-    population = [2, 3, 4, 5]
     def draw_dim() -> int:
-        bag, total = [], 0
+        bag = []
         for v, w in weights.items():
             bag.extend([v] * w)
-            total += w
         return random.choice(bag)
 
-    # Occasionally allow one 5×5×5 if early and under cap
+    # Rarely allow one 5×5×5 early
     if allow_555 and random.random() < 0.5:
         return [5, 5, 5]
 
@@ -79,7 +75,6 @@ def _sample_size_for_phase(fill: float, big_cubes_used: int) -> List[int]:
         v = draw_dim()
         if v == 5:
             if count5 >= 1:
-                # resample avoiding 5
                 v = random.choice([2, 3, 4])
             else:
                 count5 += 1
@@ -159,6 +154,20 @@ def main():
     env = BinPacking3DEnv()
     placed_boxes = []
 
+    # ---- NEW: stats we’ll log into metrics_v2
+    run_stats = {
+        "pick_calls": 0,
+        "path_calls": 0,
+        "pick_invalid_json": 0,
+        "pick_unknown_anchor": 0,
+        "path_invalid_json": 0,
+        "path_not_at_target": 0,
+        "pick_latency": [],
+        "path_latency": [],
+        "rotation_hist": {},
+        "paths": [],
+    }
+
     for i in range(MAX_BOXES):
         print(f"\n🎯 Preparing box {i + 1}...")
 
@@ -181,8 +190,13 @@ def main():
 
         for attempt in range(max_attempts):
             print(f"⏳ Pick attempt {attempt + 1}...")
+            run_stats["pick_calls"] += 1
+            t0 = time.perf_counter()
             pick = choose_rotation_and_anchor(feedback=feedback_pick)
+            run_stats["pick_latency"].append(time.perf_counter() - t0)
+
             if not pick or "rotation_index" not in pick or "anchor_id" not in pick:
+                run_stats["pick_invalid_json"] += 1
                 print("❌ Invalid pick response.")
                 feedback_pick = (
                     "Return JSON: {'rotation_index': <int>, 'anchor_id': 'rX_aY'}. "
@@ -195,9 +209,14 @@ def main():
                 state = json.load(f)
             chosen_size, final_pos = _lookup_anchor(state, pick["rotation_index"], pick["anchor_id"])
             if not chosen_size or not final_pos:
+                run_stats["pick_unknown_anchor"] += 1
                 print("❌ Pick refers to unknown rotation/anchor.")
                 feedback_pick = "Choose an anchor_id from anchors_indexed. Do not invent IDs."
                 continue
+
+            # rotation histogram
+            ridx = int(pick.get("rotation_index", -1))
+            run_stats["rotation_hist"][str(ridx)] = run_stats["rotation_hist"].get(str(ridx), 0) + 1
 
             if chosen_size != original_size:
                 print(f"🔄 LLM rotated the box: {original_size} -> {chosen_size}")
@@ -228,8 +247,13 @@ def main():
                 "end exactly at the target coordinates. Output JSON: {'path': [[x,y,z], ...]}"
             )
             for path_attempt in range(2):
+                run_stats["path_calls"] += 1
+                t1 = time.perf_counter()
                 path_resp = call_gpt4_for_path_to_target(final_pos, feedback=feedback_path)
+                run_stats["path_latency"].append(time.perf_counter() - t1)
+
                 if not path_resp or "path" not in path_resp or not path_resp["path"]:
+                    run_stats["path_invalid_json"] += 1
                     print("❌ Invalid path JSON.")
                     feedback_path = "Return JSON with 'path': [[x,y,z], ...] ending exactly at the target."
                     continue
@@ -239,6 +263,7 @@ def main():
 
                 # Final sanity: last point must equal final_pos
                 if box["path"][-1] != final_pos:
+                    run_stats["path_not_at_target"] += 1
                     print("❌ Path does not end at target.")
                     feedback_path = "Your path must end exactly at the target coordinates."
                     continue
@@ -255,6 +280,7 @@ def main():
                     "position": box["path"][-1],
                     "size": box["size"]
                 })
+                run_stats["paths"].append(list(map(list, box["path"])))
 
                 # 📸 Snapshot (valid only)
                 if not hasattr(env, "snapshot_dir"):
@@ -281,8 +307,10 @@ def main():
         else:
             print("❌ Failed to place box after 3 attempts.")
 
-    save_run_metrics(BIN_DIMS, placed_boxes, snapshot_dir=getattr(env, "snapshot_dir", None))
+    # ---- write metrics (new)
+    save_run_metrics(BIN_DIMS, placed_boxes, run_stats, snapshot_dir=getattr(env, "snapshot_dir", None))
     env.close()
+
 
 if __name__ == "__main__":
     main()
