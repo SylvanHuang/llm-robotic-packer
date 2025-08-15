@@ -1,14 +1,10 @@
 # local_llm_llama32.py
-# Local Meta-Llama-3.2-3B-Instruct + LoRA backend (drop-in replacement for local_llm.py)
+# Meta-Llama-3.2-3B-Instruct + LoRA backend (LfD-style prompts)
 # - Reads:  instructions/bin_state.json
 # - Writes: instructions/instruction.json
-# - Public API: choose_rotation_and_anchor(), call_gpt4_for_path_to_target(final_pos, feedback="")
-#
-# Assumptions:
-#   BASE_MODEL = "meta-llama/Llama-3.2-3B-Instruct"
-#   LoRA adapter dir at: ./models/llama32-3b   (contains adapter_model.safetensors, adapter_config.json, etc.)
-#
-# If your base model ID or adapter path differ, edit BASE_MODEL and LORA_DIR below.
+# Public API:
+#   - choose_rotation_and_anchor(feedback: str = "") -> dict | None
+#   - call_gpt4_for_path_to_target(final_pos, feedback: str = "") -> dict | None
 
 import os, re, json
 from typing import Any, Dict, List, Tuple, Iterable
@@ -43,14 +39,12 @@ _ensure_instruction_json()
 os.environ.setdefault("PYTORCH_MPS_HIGH_WATERMARK_RATIO", "0.0")
 
 # ---------- model constants ----------
-BASE_MODEL = "meta-llama/Llama-3.2-3B-Instruct"   # <-- change if you used a different base
-LORA_DIR   = os.path.join(REPO_ROOT, "models", "llama32-3b")  # <-- your fine-tuned adapter directory
+BASE_MODEL = "meta-llama/Llama-3.2-3B-Instruct"              # change if your base differs
+LORA_DIR   = os.path.join(REPO_ROOT, "models", "llama32-3b") # your LoRA adapter dir
 ATTN_IMPL  = "sdpa"  # Llama 3.x generally prefers SDPA; fallback to "eager" if needed
 
-SYSTEM_MSG = (
-    "You are a bin-packing assistant. "
-    "Always respond in STRICT JSON only, no extra text, no code fences."
-)
+# System message: keep it strict & lightweight
+SYSTEM_STRICT = "You are a bin-packing assistant. Output STRICT JSON only. No prose, no code fences."
 
 # ---------- module-level caches ----------
 _MODEL = None
@@ -207,7 +201,7 @@ def _load_once():
         torch_dtype=_dtype_for(_DEVICE),
         low_cpu_mem_usage=True,
         attn_implementation=ATTN_IMPL,
-        device_map=None,   # load on CPU then move → avoids MPS warmup issues
+        device_map=None,   # load on CPU then move → avoids MPS warmup hiccups
     )
     base.to(_DEVICE)
     base.config.use_cache = True
@@ -250,12 +244,10 @@ def _sanitize_jsonish(s: str) -> str:
     return s
 
 def _parse_json_or_fix(raw_text: str) -> Dict[str,Any]:
-    # attempt 1: try to parse as-is (it should be only the assistant text)
     try:
         return json.loads(_strip_fences(raw_text))
     except Exception:
         pass
-    # attempt 2: balanced slice or sanitize
     bal = _balanced_json_slice(raw_text)
     if bal:
         try:
@@ -264,7 +256,7 @@ def _parse_json_or_fix(raw_text: str) -> Dict[str,Any]:
             pass
     return json.loads(_sanitize_jsonish(raw_text))
 
-# --------------------- generation ---------------------
+# --------------------- chat utils & generation ---------------------
 class StopOnEOT(StoppingCriteria):
     def __init__(self, tok):
         self.eot_id = _get_eot_id(tok)
@@ -284,10 +276,9 @@ def _apply_chat(tok, system: str, user: str, return_tensors="pt"):
         return_tensors=return_tensors
     )
 
-def _generate(user_json: str, max_new_tokens: int) -> Dict[str,Any]:
+def _generate_json(system_msg: str, user_msg: str, max_new_tokens: int) -> Dict[str,Any]:
     model, tok, device = _load_once()
-    # Build chat prompt with the tokenizer's chat template (Llama 3.x)
-    inputs = _apply_chat(tok, SYSTEM_MSG, user_json).to(device)
+    inputs = _apply_chat(tok, system_msg, user_msg).to(device)
 
     with torch.no_grad():
         out = model.generate(
@@ -300,16 +291,14 @@ def _generate(user_json: str, max_new_tokens: int) -> Dict[str,Any]:
             stopping_criteria=StoppingCriteriaList([StopOnEOT(tok)]),
         )
 
-    # Decode only the newly generated tokens (exclude the prompt tokens)
+    # Decode only the generated continuation
     gen_tokens = out[0, inputs.shape[1]:]
     text = tok.decode(gen_tokens, skip_special_tokens=True)
-
-    # Try parse, then one self-repair retry if needed
     try:
         return _parse_json_or_fix(text)
     except Exception:
-        repair_user = "Output strict JSON only. Reprint just the corrected JSON for the last instruction."
-        rep_inputs = _apply_chat(tok, SYSTEM_MSG, repair_user).to(device)
+        # one-shot self-repair
+        rep_inputs = _apply_chat(tok, system_msg, "Output strict JSON only for the last instruction.").to(device)
         with torch.no_grad():
             out2 = model.generate(
                 rep_inputs,
@@ -321,11 +310,14 @@ def _generate(user_json: str, max_new_tokens: int) -> Dict[str,Any]:
                 stopping_criteria=StoppingCriteriaList([StopOnEOT(tok)]),
             )
         gen2 = out2[0, rep_inputs.shape[1]:]
-        text2 = tok.decode(gen2, skip_special_tokens=True)
-        return _parse_json_or_fix(text2)
+        return _parse_json_or_fix(tok.decode(gen2, skip_special_tokens=True))
 
-# --------------------- prompts ---------------------
-def _build_user_pick(state: Dict[str,Any], feedback: str) -> str:
+# --------------------- LfD-style prompt builders ---------------------
+def _build_user_pick_v2(state: Dict[str, Any], feedback: str) -> str:
+    """
+    LfD-style JSON payload (matches fine-tune distribution) with improved objectives.
+    Adds an explicit CORNER-FIRST bias & stability constraints.
+    """
     payload = {
         "state": {
             "bin_dims": state["bin_dims"],
@@ -333,31 +325,46 @@ def _build_user_pick(state: Dict[str,Any], feedback: str) -> str:
             "anchors_indexed": state["anchors_indexed"],
         },
         "instruction": (
-            "Choose one rotation_index and one anchor_id from anchors_indexed. "
-            "Return JSON with keys rotation_index (int) and anchor_id (string)."
+            "Select exactly one rotation_index and one anchor_id from anchors_indexed.\n"
+            "PRIMARY OBJECTIVE: maximize future packability by preserving large, contiguous, axis-aligned cavities.\n"
+            "SECONDARY (in order): (a) lowest final Z, (b) flush to two orthogonal surfaces (floor + wall), "
+            "(c) choose rotation with shortest dimension along Z (flat top), "
+            "(d) minimize lateral fragmentation, (e) NO OVERHANGS—base must be fully supported by surfaces below.\n"
+            "CORNER-FIRST BIAS: when feasible, prefer anchors touching both X=0 and Y=0 walls "
+            "(minimal x and minimal y among valid candidates). If the bin is empty, prefer minimal (x+y).\n"
+            "TIE-BREAKERS: 1) lowest Z, 2) smallest Y, 3) smallest X, 4) lowest rotation_index.\n"
+            "OUTPUT (STRICT JSON): {\"rotation_index\": <int>, \"anchor_id\": \"r<idx>_a<j>\"}"
         ),
     }
-    if feedback: payload["feedback"] = feedback
-    return json.dumps(payload, separators=(",",":"))
+    if feedback:
+        payload["feedback"] = feedback
+    return json.dumps(payload, separators=(",", ":"))
 
-def _build_user_path(state: Dict[str,Any], final_pos: List[float], anchor_id: str|None, feedback: str) -> str:
+def _build_user_path_v2(state: Dict[str, Any], final_pos: List[float], anchor_id: str | None, feedback: str) -> str:
+    """
+    LfD-style JSON payload for path (state + target_anchor), matching training distribution.
+    """
     target = {"pos": final_pos}
-    if anchor_id is not None: target["id"] = anchor_id
+    if anchor_id is not None:
+        target["id"] = anchor_id
     payload = {
         "state": {
             "bin_dims": state["bin_dims"],
             "incoming_box": state["incoming_box"],
-            "target_anchor": target,
         },
+        "target_anchor": target,
         "instruction": (
-            "Produce a collision-free path ending exactly at target_anchor.pos. "
-            "Return JSON with key path: [[x,y,z], ...]."
+            "Produce a short, feasible, axis-aligned path that ends EXACTLY at target_anchor.pos.\n"
+            "RULES: start from above the bin (z > bin_height); keep coordinates within bounds except the initial overhead; "
+            "prefer [overhead -> x/y align -> descend]; final segment must descend onto the target (gravity).\n"
+            "OUTPUT (STRICT JSON): {\"path\": [[x,y,z], ...]}"
         ),
     }
-    if feedback: payload["feedback"] = feedback
-    return json.dumps(payload, separators=(",",":"))
+    if feedback:
+        payload["feedback"] = feedback
+    return json.dumps(payload, separators=(",", ":"))
 
-# --------------------- public API (writes instruction.json) ---------------------
+# --------------------- public API ---------------------
 def choose_rotation_and_anchor(feedback: str = "") -> dict | None:
     global _LAST_PICK
     try:
@@ -365,17 +372,16 @@ def choose_rotation_and_anchor(feedback: str = "") -> dict | None:
             raw = json.load(f)
         state = _normalize_state(raw)
     except Exception as e:
-        print(f"[local_llm_llama32] state normalization failed: {e}")
+        print(f"[local_llm_llama32] state read/normalize failed: {e}")
         return None
 
-    user_json = _build_user_pick(state, feedback)
-    pick = _generate(user_json, max_new_tokens=128)
+    user_json = _build_user_pick_v2(state, feedback)
+    pick = _generate_json(SYSTEM_STRICT, user_json, max_new_tokens=160)
 
     if not isinstance(pick, dict) or "rotation_index" not in pick or "anchor_id" not in pick:
         print(f"[local_llm_llama32] invalid pick JSON: {pick}")
         return None
 
-    # Write minimal response; simulator reads instruction.json when needed
     try:
         os.makedirs(os.path.dirname(INSTR_PATH), exist_ok=True)
         with open(INSTR_PATH, "w") as f:
@@ -388,52 +394,45 @@ def choose_rotation_and_anchor(feedback: str = "") -> dict | None:
 
 def call_gpt4_for_path_to_target(final_pos, feedback: str = "") -> dict | None:
     """Generate a path JSON to final_pos and write it to instructions/instruction.json."""
-    # 1) Read & normalize state
     try:
         with open(BIN_STATE_PATH, "r") as f:
             raw = json.load(f)
-        try:
-            state = _normalize_state(raw)
-        except Exception:
-            state = raw
+        state = _normalize_state(raw)
     except Exception as e:
         print(f"[local_llm_llama32] failed reading state: {e}")
         return None
 
-    # 2) Build prompt (use last chosen anchor id if available)
-    anchor_id = _LAST_PICK.get("anchor_id") if isinstance(_LAST_PICK, dict) else None
     try:
         fpos = list(map(float, final_pos))
-        user_json = _build_user_path(state, fpos, anchor_id, feedback)
-    except Exception as e:
-        print(f"[local_llm_llama32] build_user_path failed: {e}")
-        safe = {"path": [list(map(float, final_pos))]}
-        os.makedirs(os.path.dirname(INSTR_PATH), exist_ok=True)
-        with open(INSTR_PATH, "w") as f:
-            json.dump(safe, f, separators=(",", ":"), ensure_ascii=False)
-        return safe
-
-    # 3) Generate → parse with hard fallback
-    try:
-        path = _generate(user_json, max_new_tokens=192)
     except Exception:
-        path = {"path": [list(map(float, final_pos))]}
+        print(f"[local_llm_llama32] final_pos not numeric: {final_pos}")
+        return None
 
-    # 4) Coerce to numeric path and ensure it ends at final_pos
-    path = _coerce_path_dict(path)
-    if not path["path"]:
-        path["path"] = [fpos]
-    else:
-        end = path["path"][-1]
-        if any(abs(a - b) > 1e-6 for a, b in zip(end, fpos)):
-            path["path"].append(fpos)
+    anchor_id = _LAST_PICK.get("anchor_id") if isinstance(_LAST_PICK, dict) else None
+    user_json = _build_user_path_v2(state, fpos, anchor_id, feedback)
 
-    # 5) Write to instruction.json
+    try:
+        path = _generate_json(SYSTEM_STRICT, user_json, max_new_tokens=192)
+    except Exception:
+        path = {"path": [fpos]}
+
+    # coerce + ensure it ends at fpos
+    if not isinstance(path, dict): path = {}
+    pts = path.get("path", [])
+    if not isinstance(pts, list): pts = []
+    clean = []
+    for p in pts:
+        if isinstance(p, (list, tuple)) and len(p) == 3:
+            try: clean.append([float(p[0]), float(p[1]), float(p[2])])
+            except Exception: pass
+    if not clean or any(abs(a-b) > 1e-6 for a,b in zip(clean[-1], fpos)):
+        clean.append(fpos)
+    out = {"path": clean}
+
     try:
         os.makedirs(os.path.dirname(INSTR_PATH), exist_ok=True)
         with open(INSTR_PATH, "w") as f:
-            json.dump(path, f, separators=(",", ":"), ensure_ascii=False)
+            json.dump(out, f, separators=(",", ":"), ensure_ascii=False)
     except Exception as e:
         print(f"[local_llm_llama32] failed writing {INSTR_PATH}: {e}")
-
-    return path
+    return out
