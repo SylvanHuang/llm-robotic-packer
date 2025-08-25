@@ -1,11 +1,3 @@
-# llm_local.py
-# Meta-Llama-3.2-3B-Instruct + LoRA backend (LfD-style prompts)
-# - Reads:  instructions/bin_state.json
-# - Writes: instructions/instruction.json
-# Public API:
-#   - choose_rotation_and_anchor(feedback: str = "") -> dict | None
-#   - call_gpt4_for_path_to_target(final_pos, feedback: str = "") -> dict | None
-
 import os, re, json
 from typing import Any, Dict, List, Tuple, Iterable
 
