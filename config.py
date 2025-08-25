@@ -1,15 +1,10 @@
-# config.py
-# Central config for the simulator & LLM backends.
-
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 
-# ---- Backend selection ----
 USE_LOCAL_LLM: bool = True
 
-# ---- Local LoRA model ----
-# Folder that contains adapter_model.safetensors + tokenizer files (see README)
+
 LFD_LORA_CKPT: Path = PROJECT_ROOT / "models" / "gemma-2b-it"
 
 # Recommended for Gemma-2: eager
