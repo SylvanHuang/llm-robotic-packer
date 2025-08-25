@@ -8,7 +8,7 @@ from typing import List
 from envs.bin_packing_env import BinPacking3DEnv
 from envs.state_manager import save_bin_state, check_collision, is_supported, is_within_bounds
 from envs.metrics import save_run_metrics
-from llm_backend import choose_rotation_and_anchor, generate_path
+from config import choose_rotation_and_anchor, generate_path
 
 # ------------------------ Runtime knobs ------------------------
 BIN_DIMS = [10, 10, 10]
@@ -150,7 +150,6 @@ def main():
     env = BinPacking3DEnv()
     placed_boxes = []
 
-    # ---- NEW: stats we’ll log into metrics_v2
     run_stats = {
         "pick_calls": 0,
         "path_calls": 0,
