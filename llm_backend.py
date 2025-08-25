@@ -26,7 +26,7 @@ _ensure_instruction_json()
 
 # llm_backend.py (only this block changes)
 if cfg.USE_LOCAL_LLM:
-    from local_llm_llama32 import (
+    from llm_local import (
         choose_rotation_and_anchor,
         generate_path,
     )

@@ -1,4 +1,4 @@
-# local_llm_llama32.py
+# llm_local.py
 # Meta-Llama-3.2-3B-Instruct + LoRA backend (LfD-style prompts)
 # - Reads:  instructions/bin_state.json
 # - Writes: instructions/instruction.json
