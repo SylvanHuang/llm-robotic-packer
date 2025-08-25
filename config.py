@@ -6,7 +6,7 @@ if USE_LOCAL_LLM:
         generate_path,
     )
 else:
-    from llm_generate import (
+    from llm_api import (
         choose_rotation_and_anchor,
         generate_path,
     )

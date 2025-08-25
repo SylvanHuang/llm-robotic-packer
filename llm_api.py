@@ -89,6 +89,8 @@ def choose_rotation_and_anchor(feedback: str = ""):
     except json.JSONDecodeError:
         return None
 
+
+# noinspection PyTypeChecker
 def generate_path(target_pos, feedback: str = ""):
     """
     Ask the model for a gravity-like path that ends exactly at target_pos.

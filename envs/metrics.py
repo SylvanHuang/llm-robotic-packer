@@ -1,6 +1,4 @@
 # envs/metrics.py
-# New metric suite for LLM robotic packer (paper-aligned + structure-aware).
-# Pure NumPy implementation (no SciPy). Works with integer, axis-aligned boxes.
 
 from __future__ import annotations
 
