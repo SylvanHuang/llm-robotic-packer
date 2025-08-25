@@ -12,7 +12,7 @@ from typing import List
 from envs.bin_packing_env import BinPacking3DEnv
 from envs.state_manager import save_bin_state, check_collision, is_supported, is_within_bounds
 from envs.metrics_v2 import save_run_metrics  # <-- NEW metrics
-from llm_backend import choose_rotation_and_anchor, call_gpt4_for_path_to_target
+from llm_backend import choose_rotation_and_anchor, generate_path
 
 # ------------------------ Runtime knobs ------------------------
 BIN_DIMS = [10, 10, 10]
@@ -249,7 +249,7 @@ def main():
             for path_attempt in range(2):
                 run_stats["path_calls"] += 1
                 t1 = time.perf_counter()
-                path_resp = call_gpt4_for_path_to_target(final_pos, feedback=feedback_path)
+                path_resp = generate_path(final_pos, feedback=feedback_path)
                 run_stats["path_latency"].append(time.perf_counter() - t1)
 
                 if not path_resp or "path" not in path_resp or not path_resp["path"]:

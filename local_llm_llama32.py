@@ -392,7 +392,7 @@ def choose_rotation_and_anchor(feedback: str = "") -> dict | None:
     _LAST_PICK = pick
     return pick
 
-def call_gpt4_for_path_to_target(final_pos, feedback: str = "") -> dict | None:
+def generate_path(final_pos, feedback: str = "") -> dict | None:
     """Generate a path JSON to final_pos and write it to instructions/instruction.json."""
     try:
         with open(BIN_STATE_PATH, "r") as f:

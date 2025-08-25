@@ -28,12 +28,12 @@ _ensure_instruction_json()
 if cfg.USE_LOCAL_LLM:
     from local_llm_llama32 import (
         choose_rotation_and_anchor,
-        call_gpt4_for_path_to_target,
+        generate_path,
     )
 else:
     from llm_generate import (
         choose_rotation_and_anchor,
-        call_gpt4_for_path_to_target,
+        generate_path,
     )
 
-__all__ = ["choose_rotation_and_anchor", "call_gpt4_for_path_to_target"]
+__all__ = ["choose_rotation_and_anchor", "generate_path"]

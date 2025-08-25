@@ -95,7 +95,7 @@ SYSTEM_PATH = (
 )
 
 
-def call_gpt4_for_path_to_target(target_pos, feedback: str = ""):
+def generate_path(target_pos, feedback: str = ""):
     """
     Ask the model for a gravity-like path that ends exactly at target_pos.
     Uses JSON response mode to ensure strict JSON output.
