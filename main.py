@@ -1,7 +1,3 @@
-# main.py
-# Curriculum + feasibility-aware box sampler (≤5 per dimension, at most one 5).
-# Goal: feed the LLM sizes that *can* fill the bin intelligently without spamming 5x5x5.
-
 import os
 import json
 import time
@@ -11,7 +7,7 @@ from typing import List
 
 from envs.bin_packing_env import BinPacking3DEnv
 from envs.state_manager import save_bin_state, check_collision, is_supported, is_within_bounds
-from envs.metrics_v2 import save_run_metrics  # <-- NEW metrics
+from envs.metrics_v2 import save_run_metrics
 from llm_backend import choose_rotation_and_anchor, generate_path
 
 # ------------------------ Runtime knobs ------------------------

@@ -1,5 +1,3 @@
-# llm_generate.py
-
 import os
 import json
 from dotenv import load_dotenv
@@ -11,7 +9,6 @@ load_dotenv()
 api_key = os.getenv("OPENAI_API_KEY")
 client = OpenAI(api_key=api_key)
 
-# ---------- Call 1: choose rotation + anchor by ID ----------
 
 SYSTEM_PICK = (
     "You are the placement selector for a 3D bin‑packing simulator.\n"
@@ -32,6 +29,19 @@ SYSTEM_PICK = (
     "\n"
     "OUTPUT FORMAT (STRICT JSON):\n"
     '  {\"rotation_index\": <int>, \"anchor_id\": \"r<idx>_a<j>\"}\n'
+    "No extra keys. No comments. No prose."
+)
+
+SYSTEM_PATH = (
+    "You are a path planner for a 3D bin‑packing simulator.\n"
+    "GOAL: produce a short, feasible, axis‑aligned path that ends EXACTLY at the given target [x,y,z].\n"
+    "MOTION RULES:\n"
+    "  • Start from above the bin (z > bin_height) or current lift height if provided.\n"
+    "  • Use axis‑aligned segments only; keep steps monotonic where possible.\n"
+    "  • Respect gravity: final approach must be a descending segment onto the target.\n"
+    "  • Keep the path minimal: prefer sequence [above->x/y align->descend] with as few turns as possible.\n"
+    "  • All coordinates must remain within bin bounds except the initial overhead point.\n"
+    "FORMAT (STRICT JSON): {\"path\": [[x,y,z], ...]}\n"
     "No extra keys. No comments. No prose."
 )
 
@@ -78,22 +88,6 @@ def choose_rotation_and_anchor(feedback: str = ""):
         return json.loads(raw)
     except json.JSONDecodeError:
         return None
-
-# ---------- Call 2: generate a path to a fixed final target ----------
-
-SYSTEM_PATH = (
-    "You are a path planner for a 3D bin‑packing simulator.\n"
-    "GOAL: produce a short, feasible, axis‑aligned path that ends EXACTLY at the given target [x,y,z].\n"
-    "MOTION RULES:\n"
-    "  • Start from above the bin (z > bin_height) or current lift height if provided.\n"
-    "  • Use axis‑aligned segments only; keep steps monotonic where possible.\n"
-    "  • Respect gravity: final approach must be a descending segment onto the target.\n"
-    "  • Keep the path minimal: prefer sequence [above->x/y align->descend] with as few turns as possible.\n"
-    "  • All coordinates must remain within bin bounds except the initial overhead point.\n"
-    "FORMAT (STRICT JSON): {\"path\": [[x,y,z], ...]}\n"
-    "No extra keys. No comments. No prose."
-)
-
 
 def generate_path(target_pos, feedback: str = ""):
     """
