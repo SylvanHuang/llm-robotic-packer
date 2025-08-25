@@ -1,4 +1,4 @@
-USE_LOCAL_LLM: bool = True
+USE_LOCAL_LLM: bool = False
 
 if USE_LOCAL_LLM:
     from llm_local import (

@@ -372,19 +372,5 @@ def save_run_metrics(
     with open(out_path, "w") as f:
         json.dump(metrics, f, indent=2)
 
-    # also drop a compact summary for quick grepping
-    summary = {
-        "placements": metrics["placements"],
-        "U_final": round(metrics["utilization_final"], 4),
-        "LEC": round(metrics["largest_empty_cavity_ratio"], 4),
-        "EFI": metrics["empty_fragmentation_count"],
-        "SC_mean": round(metrics["support_coverage_mean"], 4),
-        "CFR": round(metrics["corner_flush_rate"], 4),
-        "AER": round(metrics["actions"]["AER"], 4),
-        "mean_path_len": round(metrics["paths"]["mean_length_L1"], 2),
-        "mean_turns": round(metrics["paths"]["mean_turns"], 2),
-    }
-    with open(os.path.join(out_dir, f"metrics_summary_{ts}.txt"), "w") as f:
-        f.write(json.dumps(summary))
 
     print(f"[metrics] Saved metrics to {out_path}")
