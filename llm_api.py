@@ -2,6 +2,7 @@ import os
 import json
 from dotenv import load_dotenv
 from openai import OpenAI
+import config
 
 BIN_STATE_PATH = "instructions/bin_state.json"
 
@@ -74,7 +75,7 @@ def choose_rotation_and_anchor(feedback: str = ""):
     )
 
     resp = client.chat.completions.create(
-        model="gpt-4o",
+        model=config.API_MODEL,
         messages=[
             {"role": "system", "content": SYSTEM_PICK},
             {"role": "user", "content": user},
@@ -102,7 +103,7 @@ def generate_path(target_pos, feedback: str = ""):
     )
 
     resp = client.chat.completions.create(
-        model="gpt-4o",
+        model=config.API_MODEL,
         messages=[
             {"role": "system", "content": SYSTEM_PATH},
             {"role": "user", "content": user},
