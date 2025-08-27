@@ -8,6 +8,7 @@ import time
 from typing import Dict, List, Tuple
 
 import numpy as np
+import config
 
 
 # ----------------------------- helpers -----------------------------
@@ -312,7 +313,14 @@ def compute_and_package_metrics(
     a_total = pick_calls + path_calls
     AER = (100.0 * U / a_total) if a_total > 0 else 0.0
 
+    final_model = None
+    if config.USE_LOCAL_LLM:
+        final_model = config.LOCAL_MODEL
+    else:
+        final_model = config.API_MODEL
+
     metrics = {
+        "model": final_model,
         "bin_dims": bin_dims,
         "placements": len(placed_boxes),
         "utilization_final": U,

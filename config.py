@@ -1,4 +1,8 @@
-USE_LOCAL_LLM: bool = False
+API_MODEL = "gpt-4o"
+LOCAL_MODEL = "llama32-3b"
+
+
+USE_LOCAL_LLM: bool = True
 
 if USE_LOCAL_LLM:
     from llm_local import (
