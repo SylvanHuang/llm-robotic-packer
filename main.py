@@ -13,7 +13,7 @@ from config import choose_rotation_and_anchor, generate_path
 # ------------------------ Runtime knobs ------------------------
 BIN_DIMS = [10, 10, 10]
 MAX_BOXES = 25
-RANDOM_SEED = random.randint(0, 10000)
+RANDOM_SEED = 42
 
 # Quieten various progress bars / threads that can trip macOS accelerators
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")

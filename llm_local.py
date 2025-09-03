@@ -5,6 +5,8 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, StoppingCriteria, StoppingCriteriaList
 from peft import PeftModel
 
+import config
+
 # ---------- paths & setup ----------
 REPO_ROOT = os.path.abspath(os.path.dirname(__file__))
 BIN_STATE_PATH = os.path.join(REPO_ROOT, "instructions", "bin_state.json")
@@ -31,8 +33,8 @@ _ensure_instruction_json()
 os.environ.setdefault("PYTORCH_MPS_HIGH_WATERMARK_RATIO", "0.0")
 
 # ---------- model constants ----------
-BASE_MODEL = "meta-llama/Llama-3.2-3B-Instruct"              # change if your base differs
-LORA_DIR   = os.path.join(REPO_ROOT, "models", "llama32-3b") # your LoRA adapter dir
+BASE_MODEL = "meta-llama/Llama-3.2-3B-Instruct"
+LORA_DIR   = os.path.join(REPO_ROOT, "models", "llama32-3b")
 ATTN_IMPL  = "sdpa"  # Llama 3.x generally prefers SDPA; fallback to "eager" if needed
 
 # System message: keep it strict & lightweight
@@ -356,6 +358,40 @@ def _build_user_path_v2(state: Dict[str, Any], final_pos: List[float], anchor_id
         payload["feedback"] = feedback
     return json.dumps(payload, separators=(",", ":"))
 
+
+def _build_user_pick_minimal(state: Dict[str, Any], feedback: str) -> str:
+    payload = {
+        "state": {
+            "bin_dims": state["bin_dims"],
+            "incoming_box": state["incoming_box"],
+            "anchors_indexed": state["anchors_indexed"],
+        },
+        "instruction": (
+            "Return STRICT JSON: {\"rotation_index\": int, \"anchor_id\": string}.\n"
+            "Choose a stable anchor: box must be fully supported, no overhangs."
+        ),
+    }
+    if feedback:
+        payload["feedback"] = feedback
+    return json.dumps(payload, separators=(",", ":"))
+
+
+def _build_user_path_minimal(state: Dict[str, Any], final_pos: List[float], anchor_id: str|None, feedback: str) -> str:
+    target = {"pos": final_pos}
+    if anchor_id: target["id"] = anchor_id
+    payload = {
+        "state": {"bin_dims": state["bin_dims"], "incoming_box": state["incoming_box"]},
+        "target_anchor": target,
+        "instruction": (
+            "Return STRICT JSON: {\"path\": [[x,y,z], ...]}.\n"
+            "Path must end exactly at target_anchor.pos. Keep it vertical (straight down)."
+        ),
+    }
+    if feedback:
+        payload["feedback"] = feedback
+    return json.dumps(payload, separators=(",", ":"))
+
+
 # --------------------- public API ---------------------
 def choose_rotation_and_anchor(feedback: str = "") -> dict | None:
     global _LAST_PICK
@@ -364,14 +400,15 @@ def choose_rotation_and_anchor(feedback: str = "") -> dict | None:
             raw = json.load(f)
         state = _normalize_state(raw)
     except Exception as e:
-        print(f"[local_llm_llama32] state read/normalize failed: {e}")
+        print(f"{config.LOCAL_MODEL} state read/normalize failed: {e}")
         return None
 
     user_json = _build_user_pick_v2(state, feedback)
+    # user_json = _build_user_pick_minimal(state, feedback)
     pick = _generate_json(SYSTEM_STRICT, user_json, max_new_tokens=160)
 
     if not isinstance(pick, dict) or "rotation_index" not in pick or "anchor_id" not in pick:
-        print(f"[local_llm_llama32] invalid pick JSON: {pick}")
+        print(f"{config.LOCAL_MODEL} invalid pick JSON: {pick}")
         return None
 
     try:
@@ -379,7 +416,7 @@ def choose_rotation_and_anchor(feedback: str = "") -> dict | None:
         with open(INSTR_PATH, "w") as f:
             json.dump(pick, f, separators=(",", ":"), ensure_ascii=False)
     except Exception as e:
-        print(f"[local_llm_llama32] failed writing {INSTR_PATH}: {e}")
+        print(f"{config.LOCAL_MODEL} failed writing {INSTR_PATH}: {e}")
 
     _LAST_PICK = pick
     return pick
@@ -391,17 +428,18 @@ def generate_path(final_pos, feedback: str = "") -> dict | None:
             raw = json.load(f)
         state = _normalize_state(raw)
     except Exception as e:
-        print(f"[local_llm_llama32] failed reading state: {e}")
+        print(f"{config.LOCAL_MODEL} failed reading state: {e}")
         return None
 
     try:
         fpos = list(map(float, final_pos))
     except Exception:
-        print(f"[local_llm_llama32] final_pos not numeric: {final_pos}")
+        print(f"{config.LOCAL_MODEL} final_pos not numeric: {final_pos}")
         return None
 
     anchor_id = _LAST_PICK.get("anchor_id") if isinstance(_LAST_PICK, dict) else None
     user_json = _build_user_path_v2(state, fpos, anchor_id, feedback)
+    # user_json = _build_user_path_minimal(state, fpos, anchor_id, feedback)
 
     try:
         path = _generate_json(SYSTEM_STRICT, user_json, max_new_tokens=192)

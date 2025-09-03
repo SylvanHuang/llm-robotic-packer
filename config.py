@@ -1,4 +1,4 @@
-API_MODEL = "gpt-4o"
+API_MODEL = "gpt-4o-mini"
 LOCAL_MODEL = "llama32-3b"
 
 

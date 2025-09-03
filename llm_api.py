@@ -81,7 +81,7 @@ def choose_rotation_and_anchor(feedback: str = ""):
             {"role": "user", "content": user},
         ],
         temperature=0.0,
-        response_format={"type": "json_object"},  # ✅ force strict JSON
+        response_format={"type": "json_object"},
     )
 
     raw = resp.choices[0].message.content
@@ -109,7 +109,7 @@ def generate_path(target_pos, feedback: str = ""):
             {"role": "user", "content": user},
         ],
         temperature=0.0,
-        response_format={"type": "json_object"},  # ✅ force strict JSON
+        response_format={"type": "json_object"},
     )
 
     raw = resp.choices[0].message.content
