@@ -42,6 +42,7 @@ def _pick_attn_impl():
     except Exception:
         return "sdpa"
 ATTN_IMPL = _pick_attn_impl()
+ATTN_IMPL = "sdpa"
 
 # toggle quantization
 USE_4BIT = False   # set False to use 8-bit instead
