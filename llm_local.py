@@ -2,7 +2,7 @@ import os, re, json
 from typing import Any, Dict, List, Tuple, Iterable
 
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, StoppingCriteria, StoppingCriteriaList
+from transformers import AutoModelForCausalLM, AutoTokenizer, StoppingCriteria, StoppingCriteriaList, BitsAndBytesConfig
 from peft import PeftModel
 
 import config
@@ -29,13 +29,23 @@ def _ensure_instruction_json():
 
 _ensure_instruction_json()
 
-# Optional MPS memory hint on macOS
-os.environ.setdefault("PYTORCH_MPS_HIGH_WATERMARK_RATIO", "0.0")
 
-# ---------- model constants ----------
-BASE_MODEL = "meta-llama/Llama-3.2-3B-Instruct"
-LORA_DIR   = os.path.join(REPO_ROOT, "models", "llama32-3b")
-ATTN_IMPL  = "sdpa"  # Llama 3.x generally prefers SDPA; fallback to "eager" if needed
+# os.environ.setdefault("PYTORCH_MPS_HIGH_WATERMARK_RATIO", "0.0")
+os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True,max_split_size_mb:128")
+
+# pick the best attention kernel available
+def _pick_attn_impl():
+    # prefer FlashAttention2 on NVIDIA if installed, else SDPA
+    try:
+        import flash_attn  # noqa: F401
+        return "flash_attention_2"
+    except Exception:
+        return "sdpa"
+ATTN_IMPL = _pick_attn_impl()
+
+# toggle quantization
+USE_4BIT = False   # set False to use 8-bit instead
+USE_8BIT = False  # set True if you prefer 8-bit
 
 # System message: keep it strict & lightweight
 SYSTEM_STRICT = "You are a bin-packing assistant. Output STRICT JSON only. No prose, no code fences."
@@ -185,13 +195,13 @@ def _load_once():
 
     _DEVICE = _pick_device()
 
-    tok = AutoTokenizer.from_pretrained(BASE_MODEL, use_fast=True)
+    tok = AutoTokenizer.from_pretrained(config.BASE_MODEL, use_fast=True)
     if tok.pad_token is None:
         tok.pad_token = tok.eos_token
     tok.padding_side = "right"
 
     base = AutoModelForCausalLM.from_pretrained(
-        BASE_MODEL,
+        config.BASE_MODEL,
         torch_dtype=_dtype_for(_DEVICE),
         low_cpu_mem_usage=True,
         attn_implementation=ATTN_IMPL,
@@ -200,13 +210,66 @@ def _load_once():
     base.to(_DEVICE)
     base.config.use_cache = True
 
-    if not os.path.isdir(LORA_DIR):
-        raise FileNotFoundError(f"LoRA adapter not found at {LORA_DIR}")
-    model = PeftModel.from_pretrained(base, LORA_DIR)
+    if not os.path.isdir(config.LORA_DIR):
+        raise FileNotFoundError(f"LoRA adapter not found at {config.LORA_DIR}")
+    model = PeftModel.from_pretrained(base, config.LORA_DIR)
     model.eval()
 
     _MODEL, _TOK = model, tok
     return _MODEL, _TOK, _DEVICE
+
+
+# def _load_once():
+#     global _MODEL, _TOK, _DEVICE
+#     if _MODEL is not None:
+#         return _MODEL, _TOK, _DEVICE
+
+#     _DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+#     tok = AutoTokenizer.from_pretrained(config.BASE_MODEL, use_fast=True)
+#     if tok.pad_token is None:
+#         tok.pad_token = tok.eos_token
+#     tok.padding_side = "right"
+
+#     quant_cfg = None
+#     torch_dtype = torch.bfloat16  # Ada/Lovelace does bf16 well; same VRAM as fp16
+
+#     if USE_4BIT:
+#         quant_cfg = BitsAndBytesConfig(
+#             load_in_4bit=True,
+#             bnb_4bit_quant_type="nf4",
+#             bnb_4bit_use_double_quant=True,
+#             bnb_4bit_compute_dtype=torch.bfloat16,
+#         )
+#         torch_dtype = None  # dtype is handled by bnb compute dtype
+#     elif USE_8BIT:
+#         quant_cfg = BitsAndBytesConfig(load_in_8bit=True)
+
+#     # Let HF place layers; it will keep most on GPU, offload a few if needed
+#     base = AutoModelForCausalLM.from_pretrained(
+#         config.BASE_MODEL,
+#         device_map="auto",
+#         low_cpu_mem_usage=True,
+#         attn_implementation=ATTN_IMPL,
+#         torch_dtype=torch_dtype,
+#         quantization_config=quant_cfg,
+#     )
+#     base.config.use_cache = True
+
+#     if not os.path.isdir(config.LORA_DIR):
+#         raise FileNotFoundError(f"LoRA adapter not found at {config.LORA_DIR}")
+
+#     model = PeftModel.from_pretrained(base, config.LORA_DIR)
+#     model.eval()
+
+#     # Optional: if you're done with adapters and want a single fused model:
+#     # (skip when using 4-bit—merging isn’t supported there)
+#     # if not USE_4BIT and not USE_8BIT:
+#     #     model = model.merge_and_unload()
+
+#     _MODEL, _TOK = model, tok
+#     return _MODEL, _TOK, _DEVICE
+
 
 # --------------------- JSON parsing/sanitizing ---------------------
 def _strip_fences(s: str) -> str:
