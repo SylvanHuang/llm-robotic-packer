@@ -7,8 +7,10 @@ import config
 BIN_STATE_PATH = "instructions/bin_state.json"
 
 load_dotenv()
-api_key = os.getenv("OPENAI_API_KEY")
-client = OpenAI(api_key=api_key)
+openai_key = os.getenv("OPENAI_API_KEY")
+open_router_key = os.getenv("OPENROUTER_API_KEY")
+client = OpenAI(base_url="https://openrouter.ai/api/v1",
+                api_key=open_router_key)
 
 
 SYSTEM_PICK = (
