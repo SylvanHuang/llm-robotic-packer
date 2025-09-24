@@ -3,19 +3,31 @@ REPO_ROOT = os.path.abspath(os.path.dirname(__file__))
 
 
 API_GPT_5o = 'openai/gpt-5-mini'
-API_GPT_5_nano = 'openai/gpt-5-nano'
-API_GPT_oss_120 = 'openai/gpt-oss-120b'
-API_GPT_oss_20 = 'openai/gpt-oss-20b'
-API_GPT_4_1 = 'openai/gpt-4.1'
-API_GPT_4_1_mini = 'openai/gpt-4.1-mini'
+API_GPT_5nano = 'openai/gpt-5-nano'
+API_GPT_oss120 = 'openai/gpt-oss-120b'
+API_GPT_oss20 = 'openai/gpt-oss-20b'
+API_GPT_41 = 'openai/gpt-4.1'
+API_GPT_41_mini = 'openai/gpt-4.1-mini'
 API_GPT_4o_mini = 'openai/gpt-4o-mini'
 
 API_CLAUDE_4 = 'anthropic/claude-sonnet-4'
-API_CLAUDE_3_7 = 'anthropic/claude-3.7-sonnet'
-API_CLAUDE_3_5 = 'anthropic/claude-3.5-sonnet'
+API_CLAUDE_37 = 'anthropic/claude-3.7-sonnet'
+API_CLAUDE_35 = 'anthropic/claude-3.5-sonnet'
 
-API_GEMINI_FLASH_2_5 = 'google/gemini-2.5-flash'
-API_GEMINI_FLASH_2_5_LITE = 'google/gemini-2.5-flash-lite'
+API_GEMINI_FLASH_25 = 'google/gemini-2.5-flash'
+API_GEMINI_FLASH_25_LITE = 'google/gemini-2.5-flash-lite'
+
+API_QWEN_25_32 = 'qwen/qwen2.5-vl-32b-instruct'
+API_QWEN_vl_max = 'qwen/qwen-vl-max'
+
+API_DEEPSEEK_v31 = 'deepseek/deepseek-v3.1-terminus'
+API_DEEPSEEK_r1 = 'deepseek/deepseek-r1-0528'
+API_DEEPSEEK_v3 = 'deepseek/deepseek-chat-v3-0324'
+
+API_LLAMA_4_MAVERICK = 'meta-llama/llama-4-maverick'
+API_LLAMA_4_SCOUT = 'meta-llama/llama-4-scout'
+
+API_GROK_4 = 'x-ai/grok-4'
 
 
 LOCAL_MODEL = "llama32-3b"
