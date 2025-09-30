@@ -6,14 +6,14 @@ from datetime import datetime
 from typing import List
 
 from envs.bin_packing_env import BinPacking3DEnv
-from envs.state_manager import save_bin_state, check_collision, is_supported, is_within_bounds
+from envs.state_manager import save_bin_state, check_collision, is_supported, is_within_bounds, has_vertical_clearance
 from envs.metrics import save_run_metrics
 from config import choose_rotation_and_anchor, generate_path
 
 # ------------------------ Runtime knobs ------------------------
 BIN_DIMS = [10, 10, 10]
 MAX_BOXES = 25
-RANDOM_SEED = 42
+RANDOM_SEED = 1
 
 # Quieten various progress bars / threads that can trip macOS accelerators
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
@@ -235,6 +235,15 @@ def main():
                     "Pick a different anchor with full support."
                 )
                 continue
+
+            if not has_vertical_clearance(final_pos, chosen_size, placed_boxes, BIN_DIMS):
+                print("❌ No straight-down clearance.")
+                feedback_pick = (
+                    "Top-down access blocked: there is geometry above this anchor within the "
+                    "box's XY footprint. Choose a different anchor that has clear vertical access."
+                )
+                continue
+
 
             # Now ask for a path to this fixed target
             feedback_path = (

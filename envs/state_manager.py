@@ -117,18 +117,16 @@ def topk_anchors(anchors, size, bin_dims, k=8):
 
 # ---------- State writer with rotations + indexed anchors ----------
 
-def save_bin_state(placed_boxes, new_box, bin_dims, path="instructions/bin_state.json", top_k=8):
-    """
-    Writes a compact bin_state with:
-      - incoming_box.original_size
-      - rotations
-      - anchors_indexed: [{rotation_index, size, anchors:[{id,pos}]}]
-    """
+def save_bin_state(placed_boxes, new_box, bin_dims, path="instructions/bin_state.json", top_k=8, require_vertical_clearance=True):
     rotations = generate_orientations(new_box["size"])
 
     anchors_indexed = []
     for r_idx, rot_size in enumerate(rotations):
         anchors_all = generate_anchor_positions(placed_boxes, rot_size, bin_dims)
+
+        if require_vertical_clearance:
+            anchors_all = filter_anchors_with_clearance(anchors_all, rot_size, placed_boxes, bin_dims)
+
         anchors_k = topk_anchors(anchors_all, rot_size, bin_dims, k=top_k)
         anchors_with_ids = [{"id": f"r{r_idx}_a{j}", "pos": pos} for j, pos in enumerate(anchors_k)]
         anchors_indexed.append({
@@ -146,3 +144,49 @@ def save_bin_state(placed_boxes, new_box, bin_dims, path="instructions/bin_state
 
     with open(path, "w") as f:
         json.dump(state, f, indent=None, separators=(",", ": "))
+
+
+
+
+
+# ---------- Vertical top-down clearance ----------
+
+def has_vertical_clearance(anchor_pos, box_size, placed_boxes, bin_dims, eps=1e-6):
+    """
+    Return True iff a box placed at anchor_pos with box_size can be inserted
+    straight down from the bin top (z = bin_dims[2]) without hitting anything.
+
+    Logic: for any existing box that overlaps the new box's XY footprint,
+    its top surface (pz + psz) must be <= target z. If any overlap has top_z > z,
+    the descent path is obstructed.
+    """
+    x, y, z = anchor_pos
+    w, h, d = box_size
+    x_max, y_max = x + w, y + h
+
+    for b in placed_boxes:
+        px, py, pz = b["position"]
+        psx, psy, psz = b["size"]
+
+        # XY overlap with the new box footprint?
+        overlap_x = (x < px + psx) and (x_max > px)
+        overlap_y = (y < py + psy) and (y_max > py)
+        if not (overlap_x and overlap_y):
+            continue
+
+        top_z = pz + psz
+        # If any overlapping box protrudes above target z, insertion path is blocked
+        if top_z > z + eps:
+            return False
+
+    # Also implicitly relies on is_within_bounds() you already run earlier,
+    # which guarantees z + d <= bin_dims[2] (ceiling) so there is room to start from the top.
+    return True
+
+
+
+def filter_anchors_with_clearance(anchors, box_size, placed_boxes, bin_dims):
+    """Return only anchors that have straight-down vertical clearance."""
+    return [pos for pos in anchors
+            if has_vertical_clearance(pos, box_size, placed_boxes, bin_dims)]
+

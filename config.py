@@ -40,7 +40,7 @@ LORA_DIR   = os.path.join(REPO_ROOT, "models", "llama32-3b")
 ATTN_IMPL = "sdpa"  # eager or sdpa
 
 
-USE_LOCAL_LLM: bool = False
+USE_LOCAL_LLM: bool = True
 
 if USE_LOCAL_LLM:
     from llm_local import (
