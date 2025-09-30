@@ -2,7 +2,7 @@ import os
 REPO_ROOT = os.path.abspath(os.path.dirname(__file__))
 
 
-API_GPT_5o = 'openai/gpt-5-mini'
+API_GPT_5mini = 'openai/gpt-5-mini'
 API_GPT_5nano = 'openai/gpt-5-nano'
 API_GPT_oss120 = 'openai/gpt-oss-120b'
 API_GPT_oss20 = 'openai/gpt-oss-20b'
@@ -27,7 +27,11 @@ API_DEEPSEEK_v3 = 'deepseek/deepseek-chat-v3-0324'
 API_LLAMA_4_MAVERICK = 'meta-llama/llama-4-maverick'
 API_LLAMA_4_SCOUT = 'meta-llama/llama-4-scout'
 
-API_GROK_4 = 'x-ai/grok-4'
+API_GROK_3 = 'x-ai/grok-3-mini'
+API_GROK_4_FAST = 'x-ai/grok-4-fast'
+
+
+API_MODEL = API_GPT_4o_mini
 
 
 LOCAL_MODEL = "llama32-3b"

@@ -23,6 +23,7 @@ import importlib
 import random
 from typing import List, Tuple
 
+
 # ------------------------ Dataset generators (paper-aligned) ------------------------
 # DATA-1: li ∈ [2, L/2], wi ∈ [2, W/2], hi ∈ [2, H/2], shuffled.
 # DATA-2: draw from a catalog: sides in {1..5}, with at most one side == 1 (balanced volume mix), random order.
@@ -69,9 +70,9 @@ def _balanced_sample_templates(k: int, seed: int) -> List[Tuple[int, int, int]]:
 
 def gen_data1(bin_dims: List[int], n_items: int, seed: int) -> List[List[int]]:
     rng = _rng(seed)
-    L, W, H = bin_dims
-    hiL, hiW, hiH = max(2, L // 2), max(2, W // 2), max(2, H // 2)
-    boxes = [[rng.randint(2, hiL), rng.randint(2, hiW), rng.randint(2, hiH)] for _ in range(n_items)]
+    bin_length, bin_width, bin_height = bin_dims
+    max_length, max_width, max_height = max(2, bin_length // 2), max(2, bin_width // 2), max(2, bin_height // 2)
+    boxes = [[rng.randint(2, max_length), rng.randint(2, max_width), rng.randint(2, max_height)] for _ in range(n_items)]
     rng.shuffle(boxes)
     return boxes
 
