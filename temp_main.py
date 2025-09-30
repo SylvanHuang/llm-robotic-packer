@@ -24,6 +24,10 @@ import random
 from typing import List, Tuple
 
 
+from typing import List, Optional
+import itertools, random, math
+
+
 # ------------------------ Dataset generators (paper-aligned) ------------------------
 # DATA-1: li ∈ [2, L/2], wi ∈ [2, W/2], hi ∈ [2, H/2], shuffled.
 # DATA-2: draw from a catalog: sides in {1..5}, with at most one side == 1 (balanced volume mix), random order.
@@ -77,6 +81,81 @@ def gen_data1(bin_dims: List[int], n_items: int, seed: int) -> List[List[int]]:
     return boxes
 
 
+
+def gen_data1_exact(bin_dims: List[int], n_items: int, seed: int) -> List[List[int]]:
+    """
+    DATA-1 generator:
+      - bin_dims = [L, W, H] (ints)
+      - exactly n_items boxes
+      - each box dim in [2, floor(dim/2)]
+      - boxes exactly tile the bin (sum volume == L*W*H)
+    """
+    rng = random.Random(seed)
+    L, W, H = bin_dims
+    if min(L, W, H) < 4:
+        raise ValueError("Each bin dimension must be >= 4 to allow parts in [2, floor(dim/2)].")
+
+    # --- helpers ---
+    def factor_triples(n: int):
+        out = []
+        for a in range(2, n+1):
+            if n % a: continue
+            n2 = n // a
+            for b in range(2, n2+1):
+                if n2 % b: continue
+                c = n2 // b
+                if c >= 2:
+                    out.append((a, b, c))
+        return out
+
+    def feasible_k(dim: int, k: int) -> bool:
+        # Need: 2*k <= dim  and  k*floor(dim/2) >= dim
+        return (2*k <= dim) and (k*(dim//2) >= dim)
+
+    def partition_dim(dim: int, k: int) -> List[int]:
+        # Create k integers summing to dim with each in [2, floor(dim/2)]
+        if not feasible_k(dim, k):
+            raise ValueError("No per-axis partition fits the bounds.")
+        max_part = dim // 2
+        parts = [2]*k
+        remaining = dim - 2*k
+        i = 0
+        while remaining > 0:
+            give = min(remaining, max_part - parts[i])
+            parts[i] += give
+            remaining -= give
+            i = (i + 1) % k
+        return parts
+
+    # 1) find (a,b,c) with a*b*c == n_items and per-axis feasibility
+    triples = factor_triples(n_items)
+    if not triples:
+        raise ValueError("n_items must factor as a*b*c with a,b,c >= 2.")
+    # Prefer balanced counts
+    triples.sort(key=lambda t: max(t)-min(t))
+    choice = None
+    for a,b,c in triples:
+        for kL,kW,kH in set(itertools.permutations((a,b,c))):
+            if feasible_k(L,kL) and feasible_k(W,kW) and feasible_k(H,kH):
+                choice = (kL,kW,kH)
+                break
+        if choice: break
+    if not choice:
+        raise ValueError("n_items cannot fit given bin and DATA-1 bounds (try a different n_items).")
+
+    kL,kW,kH = choice
+    segL = partition_dim(L, kL)
+    segW = partition_dim(W, kW)
+    segH = partition_dim(H, kH)
+
+    boxes = [[l,w,h] for l in segL for w in segW for h in segH]
+    print(boxes)
+    print(len(boxes))
+    rng.shuffle(boxes)
+    return boxes
+
+
+
 def gen_data2(bin_dims: List[int], n_items: int, seed: int) -> List[List[int]]:
     rng = _rng(seed)
     templates = _balanced_sample_templates(64, seed)
@@ -92,7 +171,8 @@ def gen_data3(bin_dims: List[int], n_items: int, seed: int) -> List[List[int]]:
     boxes.sort(key=lambda s: _vol(tuple(s)), reverse=True)
     return boxes
 
-DATASET_MAP = {"data1": gen_data1, "data2": gen_data2, "data3": gen_data3}
+# DATASET_MAP = {"data1": gen_data1, "data2": gen_data2, "data3": gen_data3}
+DATASET_MAP = {"data1": gen_data1_exact, "data2": gen_data2, "data3": gen_data3}
 
 
 # ------------------------ Patch main.py's box generator ONLY ------------------------
