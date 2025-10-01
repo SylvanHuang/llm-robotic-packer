@@ -9,6 +9,7 @@ API_GPT_oss20 = 'openai/gpt-oss-20b'
 API_GPT_41 = 'openai/gpt-4.1'
 API_GPT_41_mini = 'openai/gpt-4.1-mini'
 API_GPT_4o_mini = 'openai/gpt-4o-mini'
+API_GPT_4o = 'openai/gpt-4o'
 
 API_CLAUDE_4 = 'anthropic/claude-sonnet-4'
 API_CLAUDE_37 = 'anthropic/claude-3.7-sonnet'
@@ -31,7 +32,7 @@ API_GROK_3 = 'x-ai/grok-3-mini'
 API_GROK_4_FAST = 'x-ai/grok-4-fast'
 
 
-API_MODEL = API_GPT_4o_mini
+API_MODEL = API_GROK_3
 
 
 LOCAL_MODEL = "llama32-3b"
@@ -40,7 +41,7 @@ LORA_DIR   = os.path.join(REPO_ROOT, "models", "llama32-3b")
 ATTN_IMPL = "sdpa"  # eager or sdpa
 
 
-USE_LOCAL_LLM: bool = True
+USE_LOCAL_LLM: bool = False
 
 if USE_LOCAL_LLM:
     from llm_local import (
