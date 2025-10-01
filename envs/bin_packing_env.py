@@ -27,7 +27,7 @@ class BinPacking3DEnv(gym.Env):
         self.placed_boxes = []
         self.load_instruction()
         self.current_step = 0
-        self.box_position = np.array(self.box_instruction["path"][0])
+        self.box_position = np.array([0.0,0.0,0.0])
 
         self.action_space = spaces.Discrete(1)
         self.observation_space = spaces.Box(
@@ -38,8 +38,40 @@ class BinPacking3DEnv(gym.Env):
         )
 
     def load_instruction(self):
-        with open(self.instruction_path, "r") as f:
-            self.box_instruction = json.load(f)
+        import os, json
+
+        # Minimal, safe default instruction
+        default_instr = {
+            "path": [[0.0, 0.0, 0.0]],
+            "size": [1.0, 1.0, 1.0]
+        }
+
+        path = self.instruction_path
+        try:
+            if not os.path.exists(path):
+                # Ensure directory exists
+                os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+                with open(path, "w") as f:
+                    json.dump(default_instr, f, indent=2)
+                self.box_instruction = default_instr
+                return
+
+            # File exists → read and parse
+            with open(path, "r") as f:
+                raw = f.read().strip()
+                if not raw:
+                    raise json.JSONDecodeError("Empty file", raw, 0)
+                self.box_instruction = json.loads(raw)
+
+        except (json.JSONDecodeError, OSError):
+            # If unreadable/invalid, recreate with default
+            try:
+                os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+                with open(path, "w") as f:
+                    json.dump(default_instr, f, indent=2)
+            except Exception:
+                pass
+            self.box_instruction = default_instr
 
     def reset(self, seed=None, options=None):
         self.current_step = 0
